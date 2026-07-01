@@ -114,6 +114,13 @@ const restaurants = [
   }
 ];
 
+let orderCounter = Math.floor(Date.now() / 1000);
+
+function generateUniqueOrderId() {
+  orderCounter++;
+  return 'FD' + orderCounter;
+}
+
 function loadOrders() {
   try {
     if (!fs.existsSync(DATA_FILE)) return [];
@@ -126,7 +133,12 @@ function loadOrders() {
 }
 
 function saveOrders(orders) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(orders, null, 2));
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(orders, null, 2));
+  } catch (err) {
+    console.error('Failed to save orders:', err);
+    throw new Error('Failed to save order');
+  }
 }
 
 function getMenuItem(restaurantId, itemId) {
@@ -150,8 +162,19 @@ function computeETA(createdAt) {
   return `${left} min`;
 }
 
+function validatePhone(phone) {
+  const cleaned = phone.replace(/[\s\-()]/g, '');
+  return /^\d{10}$/.test(cleaned);
+}
+
+function validateInput(input, minLength = 1, maxLength = 500) {
+  if (typeof input !== 'string') return false;
+  const trimmed = input.trim();
+  return trimmed.length >= minLength && trimmed.length <= maxLength;
+}
+
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 // Serve static frontend files from project root (index.html, app.js, styles.css)
 app.use(express.static(ROOT));
 
@@ -160,7 +183,8 @@ app.get('/api/restaurants', (req, res) => {
 });
 
 app.get('/api/restaurants/:id/menu', (req, res) => {
-  const restaurant = restaurants.find(r => r.id === Number(req.params.id));
+  const restaurantId = Number(req.params.id);
+  const restaurant = restaurants.find(r => r.id === restaurantId);
   if (!restaurant) return res.status(404).json({ error: 'Restaurant not found' });
   res.json(restaurant.menu);
 });
@@ -188,37 +212,60 @@ app.get('/api/orders/:id', (req, res) => {
 app.post('/api/orders', (req, res) => {
   const { customerName, phone, address, restaurantId, items, paymentMethod } = req.body;
 
-  if (!customerName || !phone || !address || !restaurantId || !Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'Missing required fields' });
+  // Validate all required fields
+  if (!validateInput(customerName, 1, 100)) {
+    return res.status(400).json({ error: 'Invalid customer name' });
   }
 
-  const restaurant = restaurants.find(r => r.id === Number(restaurantId));
-  if (!restaurant) return res.status(400).json({ error: 'Invalid restaurant' });
+  if (!validatePhone(phone)) {
+    return res.status(400).json({ error: 'Invalid phone number (must be 10 digits)' });
+  }
+
+  if (!validateInput(address, 5, 500)) {
+    return res.status(400).json({ error: 'Invalid delivery address' });
+  }
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items in order' });
+  }
+
+  const restaurantId_num = Number(restaurantId);
+  const restaurant = restaurants.find(r => r.id === restaurantId_num);
+  if (!restaurant) {
+    return res.status(400).json({ error: 'Invalid restaurant' });
+  }
 
   try {
     const enrichedItems = items.map(item => {
-      const menuItem = getMenuItem(restaurantId, item.id);
-      if (!menuItem) throw new Error('Invalid item selected');
+      const itemId = Number(item.id);
+      const menuItem = getMenuItem(restaurantId_num, itemId);
+      if (!menuItem) throw new Error(`Invalid item: ${itemId}`);
+      const qty = Math.max(1, Math.min(100, Number(item.quantity) || 1));
       return {
         id: menuItem.id,
         name: menuItem.name,
         price: menuItem.price,
-        quantity: Number(item.quantity) || 1
+        quantity: qty
       };
     });
 
     const total = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+    // Validate total (max ₹50,000)
+    if (total > 50000) {
+      return res.status(400).json({ error: 'Order total exceeds maximum limit' });
+    }
+
     const order = {
-      id: 'FD' + Date.now(),
-      customerName,
-      phone,
-      address,
+      id: generateUniqueOrderId(),
+      customerName: customerName.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
       restaurantId: restaurant.id,
       restaurantName: restaurant.name,
       items: enrichedItems,
       total,
-      paymentMethod: paymentMethod || 'Online',
+      paymentMethod: (paymentMethod || 'Online').trim(),
       createdAt: new Date().toISOString()
     };
 
@@ -235,12 +282,19 @@ app.post('/api/orders', (req, res) => {
       }
     });
   } catch (err) {
+    console.error('Order creation error:', err);
     return res.status(400).json({ error: err.message || 'Failed to create order' });
   }
 });
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, message: 'Food Delivery API running' });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // For SPA/browser refreshes, serve index.html for any unknown route (after API routes)
