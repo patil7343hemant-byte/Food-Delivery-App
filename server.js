@@ -5,7 +5,8 @@ const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const ROOT = path.join(__dirname, '..');
+// Serve files from project root so index.html, app.js, styles.css (at repo root) are available
+const ROOT = __dirname;
 const DATA_FILE = path.join(__dirname, 'orders.json');
 
 const restaurants = [
@@ -151,7 +152,8 @@ function computeETA(createdAt) {
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(ROOT, 'frontend')));
+// Serve static frontend files from project root (index.html, app.js, styles.css)
+app.use(express.static(ROOT));
 
 app.get('/api/restaurants', (req, res) => {
   res.json(restaurants.map(({ menu, ...rest }) => rest));
@@ -193,48 +195,57 @@ app.post('/api/orders', (req, res) => {
   const restaurant = restaurants.find(r => r.id === Number(restaurantId));
   if (!restaurant) return res.status(400).json({ error: 'Invalid restaurant' });
 
-  const enrichedItems = items.map(item => {
-    const menuItem = getMenuItem(restaurantId, item.id);
-    if (!menuItem) throw new Error('Invalid item selected');
-    return {
-      id: menuItem.id,
-      name: menuItem.name,
-      price: menuItem.price,
-      quantity: Number(item.quantity) || 1
+  try {
+    const enrichedItems = items.map(item => {
+      const menuItem = getMenuItem(restaurantId, item.id);
+      if (!menuItem) throw new Error('Invalid item selected');
+      return {
+        id: menuItem.id,
+        name: menuItem.name,
+        price: menuItem.price,
+        quantity: Number(item.quantity) || 1
+      };
+    });
+
+    const total = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+    const order = {
+      id: 'FD' + Date.now(),
+      customerName,
+      phone,
+      address,
+      restaurantId: restaurant.id,
+      restaurantName: restaurant.name,
+      items: enrichedItems,
+      total,
+      paymentMethod: paymentMethod || 'Online',
+      createdAt: new Date().toISOString()
     };
-  });
 
-  const total = enrichedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const orders = loadOrders();
+    orders.unshift(order);
+    saveOrders(orders);
 
-  const order = {
-    id: 'FD' + Date.now(),
-    customerName,
-    phone,
-    address,
-    restaurantId: restaurant.id,
-    restaurantName: restaurant.name,
-    items: enrichedItems,
-    total,
-    paymentMethod: paymentMethod || 'Online',
-    createdAt: new Date().toISOString()
-  };
-
-  const orders = loadOrders();
-  orders.unshift(order);
-  saveOrders(orders);
-
-  res.status(201).json({
-    message: 'Order placed successfully',
-    order: {
-      ...order,
-      status: computeStatus(order.createdAt),
-      eta: computeETA(order.createdAt)
-    }
-  });
+    res.status(201).json({
+      message: 'Order placed successfully',
+      order: {
+        ...order,
+        status: computeStatus(order.createdAt),
+        eta: computeETA(order.createdAt)
+      }
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || 'Failed to create order' });
+  }
 });
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, message: 'Food Delivery API running' });
+});
+
+// For SPA/browser refreshes, serve index.html for any unknown route (after API routes)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(ROOT, 'index.html'));
 });
 
 app.listen(PORT, () => {
