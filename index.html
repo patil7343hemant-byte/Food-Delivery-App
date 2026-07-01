@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Order food from your favorite restaurants online." />
   <title>Food Delivery App</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -13,41 +14,71 @@
       <h1>Food Delivery App</h1>
       <p class="sub">Browse restaurants, add items to cart, place an order, and track status.</p>
     </div>
-    <div class="health" id="health">API status: checking...</div>
+    <div class="health" id="health" role="status" aria-live="polite">API status: checking...</div>
   </header>
 
   <main class="layout">
     <section class="panel hero">
       <div class="search-row">
-        <input id="searchInput" type="text" placeholder="Search restaurants or cuisine..." />
-        <button id="clearBtn">Clear</button>
+        <input 
+          id="searchInput" 
+          type="text" 
+          placeholder="Search restaurants or cuisine..." 
+          aria-label="Search restaurants"
+        />
+        <button id="clearBtn" aria-label="Clear search">Clear</button>
       </div>
-      <div id="restaurantList" class="cards"></div>
+      <div id="restaurantList" class="cards" role="region" aria-label="Available restaurants"></div>
     </section>
 
     <aside class="panel cart">
       <h2>Cart</h2>
-      <div id="selectedRestaurant" class="muted">No restaurant selected</div>
-      <div id="cartItems" class="cart-items"></div>
+      <div id="selectedRestaurant" class="muted" aria-live="polite">No restaurant selected</div>
+      <div id="cartItems" class="cart-items" aria-live="polite"></div>
       <div class="totals">
         <span>Total</span>
-        <strong id="cartTotal">₹0</strong>
+        <strong id="cartTotal">₹0.00</strong>
       </div>
 
       <h3>Checkout</h3>
       <form id="checkoutForm" class="checkout">
-        <input name="customerName" placeholder="Your name" required />
-        <input name="phone" placeholder="Phone number" required />
-        <textarea name="address" placeholder="Delivery address" required></textarea>
-        <select name="paymentMethod">
-          <option>Online</option>
-          <option>Cash on Delivery</option>
+        <input 
+          name="customerName" 
+          type="text"
+          placeholder="Your name" 
+          required 
+          maxlength="100"
+          aria-label="Customer name"
+        />
+        <input 
+          name="phone" 
+          type="tel"
+          placeholder="Phone number (10 digits)" 
+          required 
+          pattern="[0-9\s\-()]{10,}"
+          maxlength="20"
+          aria-label="Phone number"
+        />
+        <textarea 
+          name="address" 
+          placeholder="Delivery address" 
+          required 
+          maxlength="500"
+          rows="3"
+          aria-label="Delivery address"
+        ></textarea>
+        <select 
+          name="paymentMethod"
+          aria-label="Payment method"
+        >
+          <option value="Online">Online</option>
+          <option value="Cash on Delivery">Cash on Delivery</option>
         </select>
         <button type="submit">Place Order</button>
       </form>
 
-      <div id="orderResult" class="order-result"></div>
-      <div id="trackingBox" class="tracking hidden"></div>
+      <div id="orderResult" class="order-result hidden" role="alert" aria-live="assertive"></div>
+      <div id="trackingBox" class="tracking hidden" role="region" aria-label="Order tracking"></div>
     </aside>
   </main>
 
@@ -57,14 +88,14 @@
         <h2 id="menuTitle">Restaurant Menu</h2>
         <p id="menuSubtitle" class="muted">Select a restaurant to view items.</p>
       </div>
-      <button id="refreshOrdersBtn" class="secondary">Refresh Orders</button>
+      <button id="refreshOrdersBtn" class="secondary" aria-label="Refresh orders list">Refresh Orders</button>
     </div>
-    <div id="menuList" class="menu-grid"></div>
+    <div id="menuList" class="menu-grid" role="region" aria-label="Menu items"></div>
   </section>
 
   <section class="panel admin-panel">
     <h2>Recent Orders</h2>
-    <div id="ordersList" class="orders"></div>
+    <div id="ordersList" class="orders" role="region" aria-label="Recent orders"></div>
   </section>
 
   <script src="app.js"></script>
