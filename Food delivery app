@@ -1,0 +1,8 @@
+# Navigate to your repository folder
+cd Food-Delivery-App
+
+# Extract the ZIP file
+Expand-Archive -Path Food-Delivery-App.zip -DestinationPath .
+
+# Or using 7-Zip or WinRAR (if you prefer GUI)
+# Right-click the file → Extract All
